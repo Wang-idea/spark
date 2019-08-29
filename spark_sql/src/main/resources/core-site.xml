@@ -18,10 +18,10 @@
 
 <configuration>
 <!--配置HDFS的入口地址，即NameNode的地址-->
-<!--	<property>-->
-<!--		<name>fs.defaultFS</name>-->
-<!--		<value>hdfs://node01:8020</value>-->
-<!--	</property>-->
+	<property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://node01:8020</value>
+	</property>
 	<!--配置Hadoop的本地存储位置-->
 	<property>
 		<name>hadoop.tmp.dir</name>
