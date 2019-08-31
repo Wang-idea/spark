@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- WARNING!!! This file is auto generated for documentation purposes ONLY! -->
+    <!-- WARNING!!! Any changes you make to this file will be ignored by Hive.   -->
+    <!-- WARNING!!! You must make your changes in hive-site.xml instead.         -->
+
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:mysql://node03/HiveMetastore?createDatabaseIfNotExist=true</value>
+    </property>
+
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>com.mysql.jdbc.Driver</value>
+    </property>
+
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>root</value>
+    </property>
+
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>123456</value>
+    </property>
+
+</configuration>
