@@ -5,21 +5,18 @@ import java.sql.Date
 import kafka.serializer.StringDecoder
 import org.apache.commons.lang3.time.FastDateFormat
 import org.apache.spark.SparkConf
-import org.apache.spark.streaming.dstream.{DStream, InputDStream}
+import org.apache.spark.streaming.{Seconds, State, StateSpec, StreamingContext}
+import org.apache.spark.streaming.dstream.{DStream, InputDStream, MapWithStateDStream}
 import org.apache.spark.streaming.kafka.KafkaUtils
-import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 /**
  * @ProjectName: Spark_Parent 
- * @ClassName: StreamingOrderAmtTotal
+ * @ClassName: StreamingOrderAmtState
  * @Author: xianlawei
- * @Description: 继承Kafka，采用Direct式读取数据，对每批次（时间为1秒）数据进行词频统计，将统计结果输出到控制台。
- *               仿双十一实时累加统计各个省份订单销售额。
- *               数据格式：订单ID,省份ID,订单金额
- *               orderId,provinceId,orderPrice
- * @date: 2019/8/31 15:32
+ * @Description:
+ * @date: 2019/8/31 16:41
  */
-object StreamingOrderAmtTotal {
+object StreamingOrderAmtState {
   def main(args: Array[String]): Unit = {
     val ssc: StreamingContext = {
       val sparkConf: SparkConf = new SparkConf()
@@ -33,7 +30,7 @@ object StreamingOrderAmtTotal {
     }
 
     //设置检查点
-    ssc.checkpoint("/spark/checkpoint/ckpt-0002")
+    ssc.checkpoint("/spark/checkpoint/ckpt-0006")
 
     val kafkaParams: Map[String, String] = Map("bootstrap.servers" -> "node01:9092,node02:9092,node03:9092",
       // 表示从Topic的各个分区的哪个偏移量开始消费数据，设置为最大的偏移量开始消费数据
@@ -63,44 +60,47 @@ object StreamingOrderAmtTotal {
             (provinceId.toInt, orderPrice.toDouble)
           }
           ))
-        // TODO: 对每批次数据进行聚合操作 -> 当前批次中，每个省份销售订单额，优化
+        // TODO 对每批次数据进行聚合操作 -> 当前批次中，每个省份销售订单额，优化
         .reduceByKey((a, b) => a + b)
     )
 
     // 实时累加统计各省份订单销售
     /**
-     * def updateStateByKey[S: ClassTag](
-     * updateFunc: (Seq[V], Option[S]) => Option[S]
-     * ): DStream[(K, S)]
-     * 核心：
-     * 按照key更新状态信息，针对应用按照省份ID实时更新订单销售额
-     * 解释函数参数：
-     * (Seq[V], Option[S])
-     * 		  		- Seq[V]: 表示的是当前批次中所有Key的Value集合，
-     * 针对应用来时，表示某个省份的所有的订单的销售额
-     * 		  		- Option[S]：表示的是当前批次中Key的以前状态
-     * 针对应用来说，表示某个省份以前的总的订单销售额，此时S泛型类型：Double类型
+     * def mapWithState[StateType: ClassTag, MappedType: ClassTag](
+     * spec: StateSpec[K, V, StateType, MappedType]
+     * ): MapWithStateDStream[K, V, StateType, MappedType]
+     * 通过函数源码发现参数使用对象
+     * StateSpec 实例对象
+     * StateSpec
+     * 表示对状态封装，里面涉及到相关数据类型
+     * 如何构建StateSpec对象实例呢？？
+     * StateSpec 伴生对象中function函数构建对象
+     * def function[KeyType, ValueType, StateType, MappedType](
      *
-     * Option[S]：表示的当前Key的最新状态，
-     * 针对应用来说就是某个省份的最新的总的订单销售额
+     * 函数名称可知，针对每条数据更新Key的转态信息
+     * mappingFunction: (KeyType, Option[ValueType], State[StateType]) => MappedType
      */
-    val orderProvinceAmtDStream: DStream[(Int, Double)] = orderDStream.updateStateByKey(
-      //values表示订单销售额  state：以前的状态
-      (values: Seq[Double], state: Option[Double]) => {
-        //统计当前批次中省份的总的订单销售额
-        val currentOrderAmt: Double = values.sum
+    val spec: StateSpec[Int, Double, Double, (Int, Double)] = StateSpec.function(
+      (provinceId: Int, orderAmtOption: Option[Double], state: State[Double]) => {
+        //获取当前订单销售额
+        val currentOrderAmt: Double = orderAmtOption.getOrElse(0.0)
 
-        //获取省份以前总的订单销售额  有就返回  没有就返回0
-        val previousOrderAmt: Double = state.getOrElse(0.0)
+        //从以前状态中获取省份对应订单销售额
+        val previousOrderAmt: Double = state.getOption().getOrElse(0.0)
 
-        //计算最新省份订单销售额
-        val orderAmt = currentOrderAmt + previousOrderAmt
+        //更新省份订单销售额
+        val lastedOrderAmt: Double = currentOrderAmt + previousOrderAmt
 
-        //返回最新订单总的销售额  Option要么返回NULL  要么值  有值的话  返回Some(值)
-        //(Seq[V], Option[S]) => Option[S]  返回的是一个Option
-        Some(orderAmt)
+        //更新状态
+        state.update(lastedOrderAmt)
+
+        //返回最新省份销售订单额
+        (provinceId, lastedOrderAmt)
       }
     )
+
+    //调用mapWithState函数进行实时累加状态统计
+    val orderProvinceAmtDStream: DStream[(Int, Double)] = orderDStream.mapWithState(spec)
 
     orderProvinceAmtDStream.foreachRDD((rdd, time) => {
       val batchTime: String = FastDateFormat

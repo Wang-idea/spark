@@ -102,6 +102,13 @@
                 <version>${spark.version}</version>
             </dependency>
 
+<!--            &lt;!&ndash; Spark Streaming 与Kafka 0.10.0 集成依赖&ndash;&gt;-->
+<!--            <dependency>-->
+<!--                <groupId>org.apache.spark</groupId>-->
+<!--                <artifactId>spark-streaming-kafka-0-10_${scala.binary.version}</artifactId>-->
+<!--                <version>${spark.version}</version>-->
+<!--            </dependency>-->
+
             <!-- Hadoop Client 依赖 -->
             <dependency>
                 <groupId>org.apache.hadoop</groupId>
