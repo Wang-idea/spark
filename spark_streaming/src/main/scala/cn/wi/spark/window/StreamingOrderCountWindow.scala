@@ -5,9 +5,10 @@ import java.sql.Date
 import kafka.serializer.StringDecoder
 import org.apache.commons.lang3.time.FastDateFormat
 import org.apache.spark.SparkConf
+import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.kafka.KafkaUtils
-import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.{Seconds, StreamingContext, Time}
 
 /**
  * @ProjectName: Spark_Parent 
@@ -32,7 +33,7 @@ object StreamingOrderCountWindow {
   def main(args: Array[String]): Unit = {
     val ssc: StreamingContext = {
       // a. 创建SparkConf实例对象，设置Application相关信息
-      val sparkConf = new SparkConf()
+      val sparkConf: SparkConf = new SparkConf()
         .setMaster("local[3]")
         .setAppName(this.getClass.getSimpleName.stripSuffix("$"))
         //TODO: 设置每秒钟读取Kafka中Topic最大数据量
@@ -75,19 +76,19 @@ object StreamingOrderCountWindow {
       Seconds(STREAMING_SLIDER_INTERVAL)
     )
 
-    val orderProvinceAmtDStream: DStream[(Int, Long)] = windowDStream.transform(rdd =>
+    val orderProvinceAmtDStream: DStream[(Int, Long)] = windowDStream.transform((rdd: RDD[(String, String)]) =>
       rdd
-        .filter(tuple => tuple._2 != null && tuple._2.trim.split(",").length >= 3)
-        .mapPartitions(iter =>
-          iter.map(message => {
+        .filter((tuple: (String, String)) => tuple._2 != null && tuple._2.trim.split(",").length >= 3)
+        .mapPartitions((iter: Iterator[(String, String)]) =>
+          iter.map((message: (String, String)) => {
             val Array(orderId, provinceId, orderPrice) = message._2.trim.split(",")
             //
             (provinceId.toInt, 1L)
           }
           ))
-        .reduceByKey((a, b) => a + b)
+        .reduceByKey((a: Long, b: Long) => a + b)
     )
-    orderProvinceAmtDStream.foreachRDD((rdd, time) => {
+    orderProvinceAmtDStream.foreachRDD((rdd: RDD[(Int, Long)], time: Time) => {
       val batchTime: String = FastDateFormat
         .getInstance("yyyy/MM/dd HH:mm:ss")
         .format(new Date(time.milliseconds))
@@ -96,8 +97,8 @@ object StreamingOrderCountWindow {
       println("============================")
       if (!rdd.isEmpty()) {
         rdd.coalesce(1)
-          .foreachPartition(iter =>
-            iter.foreach(item => println(item)))
+          .foreachPartition((iter: Iterator[(Int, Long)]) =>
+            iter.foreach((item: (Int, Long)) => println(item)))
       }
     })
 

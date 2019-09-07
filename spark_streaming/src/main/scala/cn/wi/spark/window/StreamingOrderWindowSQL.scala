@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.{Seconds, StreamingContext, Time}
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.kafka.KafkaUtils
 
@@ -33,7 +33,7 @@ object StreamingOrderWindowSQL {
   def main(args: Array[String]): Unit = {
     val ssc: StreamingContext = {
       // a. 创建SparkConf实例对象，设置Application相关信息
-      val sparkConf = new SparkConf()
+      val sparkConf: SparkConf = new SparkConf()
         .setMaster("local[3]")
         .setAppName(this.getClass.getSimpleName.stripSuffix("$"))
         //TODO: 设置每秒钟读取Kafka中Topic最大数据量
@@ -77,7 +77,7 @@ object StreamingOrderWindowSQL {
     )
 
 
-    windowDStream.foreachRDD { (rdd, time) => {
+    windowDStream.foreachRDD { (rdd: RDD[(String, String)], time: Time) => {
       val batchTime: String = FastDateFormat
         .getInstance("yyyy/MM/dd HH:mm:ss")
         .format(new Date(time.milliseconds))
@@ -93,9 +93,9 @@ object StreamingOrderWindowSQL {
          * RDD转换为DataFrame，就是给RDD加上Schema信息, 采用定义Schema
          * RDD[Row]  schema
          */
-        val rowsRDD: RDD[Row] = rdd.filter(tuple => tuple._2 != null && tuple._2.trim.split(",").length >= 3)
-          .mapPartitions { iter =>
-            iter.map { msg =>
+        val rowsRDD: RDD[Row] = rdd.filter((tuple: (String, String)) => tuple._2 != null && tuple._2.trim.split(",").length >= 3)
+          .mapPartitions { iter: Iterator[(String, String)] =>
+            iter.map { msg: (String, String) =>
               // 获取Topic中每条数据Value值，进行分割
               val Array(orderId, provinceId, orderPrice) = msg._2.trim.split(",")
               // 返回
